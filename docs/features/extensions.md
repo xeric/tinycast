@@ -6,8 +6,9 @@ produces, rendered natively into the palette. No Electron, no browser, no Node.j
 - [How it works](#how-it-works) · [The JS runtime](#the-js-runtime) ·
   [The Swift host](#the-swift-host) · [Rendering](#rendering)
 - [Turning it on](#turning-it-on) · [Installing extensions](#installing-extensions) ·
-  [Registries](#registries) · [Shortcuts](#shortcuts) · [What's supported](#whats-supported) ·
-  [What isn't](#what-isnt-supported-yet) · [Working on the runtime](#working-on-the-runtime)
+  [Registries](#registries) · [Aliases and shortcuts](#aliases-and-shortcuts) ·
+  [What's supported](#whats-supported) · [What isn't](#what-isnt-supported-yet) ·
+  [Working on the runtime](#working-on-the-runtime)
 
 ## Invariants
 
@@ -412,19 +413,20 @@ Neither the registry list, the package manager, nor the custom search paths ride
 the first two name a tool or a source of code the machine an import lands on may not have or want, and
 the last is a set of paths specific to this Mac's toolchain layout.
 
-## Shortcuts
+## Aliases and shortcuts
 
-A global shortcut binds to a **command**, not to an extension — a shortcut has to land on one thing to
-run, and an extension is a set of commands. `HotKeyAction.extensionCommand` is keyed by the launcher
-entry id (`extension:<extension>/<command>`).
+An alias and a global shortcut both bind to a **command**, not to an extension — each has to land on
+one thing to run, and an extension is a set of commands. Both use the launcher entry id
+(`extension:<extension>/<command>`): `AliasStore` keys the alias directly, while
+`HotKeyAction.extensionCommand` adds its own persistence namespace.
 
 A view command summons the palette when the shortcut fires while it is hidden, or it would load
 behind a closed window. A no-view command still hides it and reports through its HUD.
 
-Its index is not pruned at launch the way the UUID-keyed ones are: the installed set is scanned
+The shortcut index is not pruned at launch the way the UUID-keyed ones are: the installed set is scanned
 asynchronously and only while extensions are on, so at launch "not installed yet" and "gone" look
-identical, and pruning there would quietly drop a working binding. Uninstalling clears its own instead,
-along with the extension's stored preferences and its chosen icon.
+identical, and pruning there would quietly drop a working binding. Uninstalling clears the command's
+shortcut, alias and launcher references, along with the extension's stored preferences and chosen icon.
 
 ## What's supported
 

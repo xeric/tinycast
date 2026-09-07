@@ -459,8 +459,10 @@ private struct ExtensionDisclosure: View {
 
 /// One card row: the label left, the control right, columns aligned by the enclosing `Grid`.
 private struct SettingsCardRow<Control: View>: View {
-    /// Wide enough for a path field, and the trailing edge every control in the column shares.
-    static var controlWidth: CGFloat { 200 }
+    /// Holds the command's alias and shortcut on one aligned trailing edge.
+    static var controlWidth: CGFloat {
+        Theme.Size.shortcutRecorder * 2 + Theme.Spacing.sm
+    }
 
     let title: String
     var detail: String?
@@ -502,24 +504,28 @@ private struct SettingsCardRow<Control: View>: View {
     }
 }
 
-/// One command: its shortcut, then any preferences it declares of its own.
+/// One command: its alias and shortcut, then any preferences it declares of its own.
 private struct CommandRows: View {
     let installed: InstalledExtension
     let command: ExtensionCommand
+
+    /// A command's launcher identity owns both its alias and its shortcut.
+    private var entryID: String {
+        ExtensionCommandRef(
+            extensionName: installed.manifest.name, commandName: command.name
+        ).entryID
+    }
 
     /// A fact about the command, so it sits by the name as a badge rather than a warning colour.
     private var badge: String? { command.mode.isSupported ? nil : "Menu Bar" }
 
     var body: some View {
         SettingsCardRow(title: command.title, detail: command.description, badge: badge) {
-            if command.mode.isSupported {
-                // Per command, not per extension: a shortcut has to land on one thing to run.
-                ShortcutRecorder(
-                    action: .extensionCommand(
-                        entryID: ExtensionCommandRef(
-                            extensionName: installed.manifest.name, commandName: command.name
-                        ).entryID),
-                    isQuiet: true)
+            HStack(spacing: Theme.Spacing.sm) {
+                AliasField(key: entryID, name: command.title)
+                if command.mode.isSupported {
+                    ShortcutRecorder(action: .extensionCommand(entryID: entryID), isQuiet: true)
+                }
             }
         }
         // Indented under its command: at the same inset the association is reading order.
