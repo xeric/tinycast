@@ -73,6 +73,10 @@ final class LauncherCoordinator {
         }
         // Commands dispatch before the palette hides: mode-switching commands keep it open.
         if app.kind == .command {
+            if let id = CustomAICommand.id(fromEntryID: app.id) {
+                core.aiChatCoordinator.runCustomAICommand(id: id, arguments: arguments)
+                return
+            }
             guard let id = CommandCatalog.command(for: app) else { return }
             // Query-driven: only this row knows the URL the typed text resolved to.
             if id == .openInBrowser {

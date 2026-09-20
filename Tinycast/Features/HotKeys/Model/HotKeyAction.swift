@@ -9,6 +9,7 @@ enum HotKeyAction: Hashable, Sendable {
     case app(bundleID: String)
     case settingsPane(bundleID: String)
     case customCommand(id: UUID)
+    case customAICommand(id: UUID)
     case systemAction(id: SystemAction.ID)
     case windowCommand(id: WindowCommand.ID)
     case windowLayout(id: UUID)
@@ -27,6 +28,7 @@ enum HotKeyAction: Hashable, Sendable {
         case .app(let bundleID): "hotkey.app." + bundleID
         case .settingsPane(let bundleID): "hotkey.pane." + bundleID
         case .customCommand(let id): "hotkey.customCommand." + id.uuidString.lowercased()
+        case .customAICommand(let id): "hotkey.customAICommand." + id.uuidString.lowercased()
         case .systemAction(let id): "hotkey.systemAction." + id.rawValue
         case .windowCommand(let id): "hotkey.windowCommand." + id.rawValue
         case .windowLayout(let id): "hotkey.windowLayout." + id.uuidString.lowercased()

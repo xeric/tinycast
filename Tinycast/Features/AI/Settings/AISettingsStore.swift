@@ -5,6 +5,8 @@ import Observation
 @Observable
 final class AISettingsStore {
     private let defaults: UserDefaults
+    private(set) var customCommands: [CustomAICommand]
+    @ObservationIgnored var onCustomCommandsChange: (([CustomAICommand]) -> Void)?
 
     private(set) var connections: [AIConnection] {
         didSet { persistConnections() }
@@ -58,6 +60,12 @@ final class AISettingsStore {
         isAppleIntelligenceAvailable: @escaping @Sendable () -> Bool = { false }
     ) {
         self.defaults = defaults
+        let storedCommands =
+            defaults.data(forKey: AppSettingsKey.aiCustomCommands.rawValue)
+            .flatMap { try? JSONDecoder().decode([StoredCustomAICommand].self, from: $0) } ?? []
+        let decodedCommands = storedCommands.map(\.command)
+        let needsCommandMigration = storedCommands.contains { $0.needsMigration }
+        customCommands = Self.sanitized(decodedCommands)
         self.isAppleIntelligenceAvailable = isAppleIntelligenceAvailable
         connections = Self.decodeConnections(
             defaults.data(forKey: AppSettingsKey.aiConnections.rawValue))
@@ -89,6 +97,35 @@ final class AISettingsStore {
         if defaultModel == nil {
             defaultModel = firstAvailableSelection()
         }
+        if needsCommandMigration || customCommands != decodedCommands { persistCustomCommands() }
+    }
+
+    func customCommand(id: UUID) -> CustomAICommand? {
+        customCommands.first { $0.id == id }
+    }
+
+    @discardableResult
+    func addCustomCommand(_ draft: CustomAICommand) throws -> CustomAICommand {
+        let command = try validated(draft)
+        commitCustomCommands(customCommands + [command])
+        return command
+    }
+
+    func updateCustomCommand(_ draft: CustomAICommand) throws {
+        guard let index = customCommands.firstIndex(where: { $0.id == draft.id }) else { return }
+        let command = try validated(draft)
+        var updated = customCommands
+        updated[index] = command
+        commitCustomCommands(updated)
+    }
+
+    @discardableResult
+    func removeCustomCommand(id: UUID) -> CustomAICommand? {
+        guard let index = customCommands.firstIndex(where: { $0.id == id }) else { return nil }
+        var updated = customCommands
+        let removed = updated.remove(at: index)
+        commitCustomCommands(updated)
+        return removed
     }
 
     func connection(id: UUID) -> AIConnection? {
@@ -246,6 +283,58 @@ final class AISettingsStore {
         defaults.set(data, forKey: AppSettingsKey.aiDefaultModel.rawValue)
     }
 
+    private func validated(_ draft: CustomAICommand) throws -> CustomAICommand {
+        var command = draft
+        command.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        command.prompt = draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !command.name.isEmpty else { throw CustomAICommandValidationError.emptyName }
+        guard !command.prompt.isEmpty else { throw CustomAICommandValidationError.emptyPrompt }
+        if let issue = AICommandTemplate(command.prompt).issue {
+            throw CustomAICommandValidationError.invalidArguments(issue.localizedDescription)
+        }
+        guard !command.name.contains("\0"), !command.prompt.contains("\0") else {
+            throw CustomAICommandValidationError.invalidCharacter
+        }
+        guard
+            !customCommands.contains(where: {
+                $0.id != command.id
+                    && $0.name.compare(command.name, options: .caseInsensitive) == .orderedSame
+            })
+        else { throw CustomAICommandValidationError.duplicateName }
+        return command
+    }
+
+    private func commitCustomCommands(_ commands: [CustomAICommand]) {
+        guard commands != customCommands else { return }
+        customCommands = commands
+        persistCustomCommands()
+        onCustomCommandsChange?(commands)
+    }
+
+    private func persistCustomCommands() {
+        guard let data = try? JSONEncoder().encode(customCommands) else { return }
+        defaults.set(data, forKey: AppSettingsKey.aiCustomCommands.rawValue)
+    }
+
+    private static func sanitized(_ commands: [CustomAICommand]) -> [CustomAICommand] {
+        var ids = Set<UUID>()
+        var names = Set<String>()
+        var result: [CustomAICommand] = []
+        for value in commands {
+            var command = value
+            command.name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            command.prompt = value.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            let foldedName = command.name.folding(options: [.caseInsensitive], locale: .current)
+            let template = AICommandTemplate(command.prompt)
+            guard !command.name.isEmpty, !command.prompt.isEmpty, !command.name.contains("\0"),
+                !command.prompt.contains("\0"), template.issue == nil,
+                ids.insert(command.id).inserted, names.insert(foldedName).inserted
+            else { continue }
+            result.append(command)
+        }
+        return result
+    }
+
     private func normalized(_ connection: AIConnection) -> AIConnection {
         var connection = connection
         connection.name = connection.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -281,5 +370,23 @@ final class AISettingsStore {
             let providers = try? JSONDecoder().decode([InstalledAIKind].self, from: data)
         else { return [] }
         return Set(providers)
+    }
+}
+
+private struct StoredCustomAICommand: Decodable {
+    let id: UUID
+    let name: String
+    let prompt: String
+    let model: AIModelSelection?
+    let allowsParameter: Bool?
+
+    var needsMigration: Bool { allowsParameter != nil }
+
+    var command: CustomAICommand {
+        CustomAICommand(
+            id: id, name: name,
+            prompt: allowsParameter == true
+                ? prompt.replacingOccurrences(of: "{{parameter}}", with: "{argument}") : prompt,
+            model: model)
     }
 }

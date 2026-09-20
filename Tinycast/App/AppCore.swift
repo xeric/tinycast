@@ -253,6 +253,9 @@ final class AppCore {
             menuSearchCoordinator.applyEnabled()
             fileSearchCoordinator.applyPolicy()
             notesCoordinator.applyEnabled()
+            aiSettings.onCustomCommandsChange = { [weak self] _ in
+                self?.aiChatCoordinator.applyCustomCommandsPresence()
+            }
             aiChatCoordinator.applyEnabled()
             mcpCoordinator.applyEnabled()
             customQuickActions.onChange = { [weak self] _ in
@@ -305,6 +308,9 @@ final class AppCore {
             hotKeys.onRunCustomCommand = { [weak self] id in
                 self?.customCommandCoordinator.runCustomCommand(id: id)
             }
+            hotKeys.onRunCustomAICommand = { [weak self] id in
+                self?.aiChatCoordinator.runCustomAICommand(id: id)
+            }
             hotKeys.onRunSystemAction = { [weak self] id in
                 self?.systemActionCoordinator.runSystemAction(id: id)
             }
@@ -348,6 +354,7 @@ final class AppCore {
             }
             hotKeys.start(
                 customCommandIDs: Set(customCommands.commands.map(\.id)),
+                customAICommandIDs: Set(aiSettings.customCommands.map(\.id)),
                 quicklinkIDs: Set(quicklinks.quicklinks.map(\.id)),
                 windowLayoutIDs: Set(windowLayouts.layouts.map(\.id)),
                 customWindowSizeIDs: Set(customWindowSizes.sizes.map(\.id)),
@@ -417,6 +424,8 @@ final class AppCore {
                 .name
         case .customCommand(let id):
             return customCommands.command(id: id)?.name
+        case .customAICommand(let id):
+            return aiSettings.customCommand(id: id)?.name
         case .quicklink(let id):
             return quicklinks.quicklink(id: id)?.name
         case .quickAction(let id):

@@ -235,6 +235,22 @@ The second footer control is the palette's normal Actions (`⌘K`) menu. It owns
 and AI Settings, plus Stop Response and Copy Last Response when those actions apply. Chat adds no
 separate footer design and no independent window.
 
+Custom AI commands are created and edited in the same AI Settings section. Each stores a UUID,
+display name, prompt and optional model selection in `AISettingsStore`; the prompt stays on this Mac
+and follows the same backup boundary as the system prompt. Leaving Model on Default follows the
+app-wide selection, while choosing a route pins that command without changing AI Chat's default.
+Their launcher entries use `AppEntry.Kind.command`, so aliases, shortcuts and visibility reuse the
+normal command machinery. Running one enters `AIScreen` but shows only the assistant response; its
+prompt and result do not enter chat history or a later chat's model context. Deletion also removes its
+shortcut, favorite, visibility, alias and learned-ranking references.
+
+Arguments are derived from the prompt rather than stored separately. `{argument}` creates a distinct
+input, while repeated `{argument name="Language"}` placeholders share one value; first occurrence
+sets field order, with at most three distinct arguments. `default="…"` makes a field optional and
+`options="a, b"` documents suggested values. Values are wrapped in triple quotes before insertion
+unless the placeholder carries `| raw`. Typing the exact command name followed by Space focuses the
+first field, and a global shortcut opens launcher search whenever a required value is missing.
+
 `AIChatState` turns provider-neutral stream events into one live assistant message. Thinking state is
 shown without entering the transcript, partial text is preserved on failure, cancellation invalidates
 the active generation, and only completed assistant messages become context for the next request.

@@ -28,6 +28,7 @@ final class AIChatCoordinator {
 
     func applyEnabled() {
         appIndex.setCommandsVisible([.aiChat], settings.aiEnabled)
+        applyCustomCommandsPresence()
         guard settings.aiEnabled else {
             // Before the handle closes: cancelling an open reply saves the conversation it ends.
             chat.startNewChat()
@@ -43,6 +44,125 @@ final class AIChatCoordinator {
             // Inside the enabled branch only: off means the file is untouched, however old it gets.
             applyRetention()
         }
+    }
+
+    func applyCustomCommandsPresence() {
+        appIndex.setAICommands(settings.aiEnabled ? core.aiSettings.customCommands : [])
+    }
+
+    func customAICommand(for entry: AppEntry?) -> CustomAICommand? {
+        guard let entry, let id = CustomAICommand.id(fromEntryID: entry.id) else { return nil }
+        return core.aiSettings.customCommand(id: id)
+    }
+
+    func argumentFocusTarget(
+        for entry: AppEntry?, previousQuery: String, newQuery: String
+    ) -> String? {
+        customAICommand(for: entry)?.firstArgumentIDAfterSpace(
+            previousQuery: previousQuery, newQuery: newQuery)
+    }
+
+    func runCustomAICommand(id: UUID, arguments: [String: String] = [:]) {
+        guard settings.aiEnabled, let command = core.aiSettings.customCommand(id: id) else { return }
+        if command.arguments.contains(where: {
+            $0.isRequired && arguments[$0.id]?.isEmpty != false
+        }) {
+            paletteCoordinator.showPalette(mode: .launcher, seeding: command.name)
+            return
+        }
+        chat.startNewChat()
+        paletteCoordinator.showPalette(mode: .ai)
+        send(command.renderedPrompt(arguments: arguments), outputOnly: true, model: command.model)
+    }
+
+    func addCustomAICommand(_ command: CustomAICommand) throws {
+        try core.aiSettings.addCustomCommand(command)
+    }
+
+    func updateCustomAICommand(_ command: CustomAICommand) throws {
+        try core.aiSettings.updateCustomCommand(command)
+    }
+
+    func deleteCustomAICommand(id: UUID) {
+        guard let command = core.aiSettings.removeCustomCommand(id: id) else { return }
+        let action = HotKeyAction.customAICommand(id: id)
+        if core.hotKeys.recordingAction == action { core.hotKeys.recordingAction = nil }
+        core.hotKeys.setBinding(nil, for: action)
+        core.favorites.remove(keys: [command.entryID])
+        core.visibility.removeItemKeys([command.entryID])
+        core.aliases.removeKeys([command.entryID])
+        core.launcherRanking.reset(itemKey: command.entryID)
+    }
+    @discardableResult
+    func send(_ input: String) -> Bool {
+        send(input, outputOnly: false)
+    }
+
+    @discardableResult
+    private func send(
+        _ input: String, outputOnly: Bool, model: AIModelSelection? = nil
+    ) -> Bool {
+        guard settings.aiEnabled else { return false }
+        do {
+            guard let selection = model ?? core.aiSettings.defaultModel else {
+                throw AIProviderError.unavailable("Choose an AI model in Settings.")
+            }
+            let capabilities = capabilities(for: selection)
+            let webSearch = core.aiSettings.webSearchEnabled && capabilities.webSearch
+            let address = MCPComposerAddress.parse(input, slugs: core.mcpCoordinator.slugs)
+            let base = try AIProviderFactory.make(
+                selection: selection, settings: core.aiSettings,
+                subscription: core.chatGPTSubscription, installedAI: core.installedAI)
+            let provider = toolAware(base, scopedTo: address.slug, capabilities: capabilities)
+            let instructions = AIInstructions.compose(
+                userPrompt: core.aiSettings.systemPrompt,
+                isEnabled: core.aiSettings.systemPromptEnabled)
+            let budget = contextBudget(for: selection)
+            if outputOnly {
+                return chat.sendOutputOnly(
+                    address.rest, using: provider, webSearch: webSearch,
+                    instructions: instructions, contextBudget: budget)
+            }
+            return chat.send(
+                address.rest, using: provider, webSearch: webSearch,
+                instructions: instructions, contextBudget: budget)
+        } catch {
+            chat.report(error.localizedDescription)
+            return false
+        }
+    }
+    /// Only chat wraps a route in the tool loop; a text rewrite has nothing to call.
+    private func toolAware(
+        _ provider: any AIProvider, scopedTo slug: String?, capabilities: AIModelCapabilities
+    ) -> any AIProvider {
+        let tools = core.mcpCoordinator.tools(scopedTo: slug)
+        guard capabilities.tools, !tools.isEmpty else { return provider }
+        let chatID = chat.session.id
+        return AIToolLoopProvider(base: provider, tools: tools) { [mcp = core.mcpCoordinator] call in
+            await mcp.invoke(call, in: chatID)
+        }
+    }
+    /// What the selected model can take; the footer offers only what applies.
+    var capabilities: AIModelCapabilities {
+        guard let selection = core.aiSettings.defaultModel else { return .none }
+        return capabilities(for: selection)
+    }
+
+    private func capabilities(for selection: AIModelSelection) -> AIModelCapabilities {
+        switch selection {
+        case .appleIntelligence: return .appleIntelligence
+        case .codex: return .codex
+        case .claude, .grok, .openCode, .cursor:
+            return AIModelCapabilities(
+                images: false, documents: false, webSearch: false, tools: false)
+        case .api(let connection, let model, _):
+            return core.aiSettings.connection(id: connection)?.capabilities(for: model)
+                ?? AIModelCapabilities.none
+        }
+    }
+
+    private func contextBudget(for selection: AIModelSelection) -> Int {
+        selection.isOnDevice ? AppleIntelligence.contextBudget : ChatSession.defaultTextBudget
     }
 
     func applyRetention() {
@@ -107,35 +227,6 @@ final class AIChatCoordinator {
         }
     }
 
-    @discardableResult
-    func send(_ input: String) -> Bool {
-        guard settings.aiEnabled else { return false }
-        do {
-            let webSearch = core.aiSettings.webSearchEnabled && capabilities.webSearch
-            let address = MCPComposerAddress.parse(input, slugs: core.mcpCoordinator.slugs)
-            return chat.send(
-                address.rest, using: try toolAware(core.aiProvider(), scopedTo: address.slug),
-                webSearch: webSearch,
-                instructions: AIInstructions.compose(
-                    userPrompt: core.aiSettings.systemPrompt,
-                    isEnabled: core.aiSettings.systemPromptEnabled),
-                contextBudget: contextBudget)
-        } catch {
-            chat.report(error.localizedDescription)
-            return false
-        }
-    }
-
-    /// Only chat wraps a route in the tool loop; a text rewrite has nothing to call.
-    private func toolAware(_ provider: any AIProvider, scopedTo slug: String?) -> any AIProvider {
-        let tools = core.mcpCoordinator.tools(scopedTo: slug)
-        guard capabilities.tools, !tools.isEmpty else { return provider }
-        let chatID = chat.session.id
-        return AIToolLoopProvider(base: provider, tools: tools) { [mcp = core.mcpCoordinator] call in
-            await mcp.invoke(call, in: chatID)
-        }
-    }
-
     /// The server a draft is addressed to, so the composer can show it as a chip while typing.
     func addressedServer(in draft: String) -> MCPServer? {
         MCPComposerAddress.parse(draft, slugs: core.mcpCoordinator.slugs).slug
@@ -180,27 +271,6 @@ final class AIChatCoordinator {
     func copyLastResponse() {
         guard let text = chat.lastAssistantText else { return }
         Paster.copyPlainText(text)
-    }
-
-    /// What the selected model can take; the footer offers only what applies.
-    var capabilities: AIModelCapabilities {
-        switch core.aiSettings.defaultModel {
-        case .appleIntelligence?: return .appleIntelligence
-        case .codex?: return .codex
-        case .claude?, .grok?, .openCode?, .cursor?:
-            return AIModelCapabilities(
-                images: false, documents: false, webSearch: false, tools: false)
-        case .api(let connection, let model, _)?:
-            return core.aiSettings.connection(id: connection)?.capabilities(for: model)
-                ?? AIModelCapabilities.none
-        case nil: return AIModelCapabilities.none
-        }
-    }
-
-    /// How much history the selected route can hold; the on-device window is far smaller.
-    private var contextBudget: Int {
-        core.aiSettings.defaultModel?.isOnDevice == true
-            ? AppleIntelligence.contextBudget : ChatSession.defaultTextBudget
     }
 
     /// ⌘V stages a file, read off-main; false hands the chord back to the field editor.

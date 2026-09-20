@@ -143,6 +143,14 @@ struct LauncherScreen: PaletteScreen {
         -> PaletteHeaderAccessory?
     {
         guard let entry = entry(at: selection) else { return nil }
+        if let command = core.aiChatCoordinator.customAICommand(for: entry) {
+            return AICommandArgumentsAccessory.make(
+                command: command, entry: entry,
+                values: { argument in
+                    headerFieldBinding(entry: entry, name: argument.id)
+                },
+                focus: focus, onSubmit: { activate(at: selection) })
+        }
         // A quicklink asks for its values in root search too, so the fallback never leaves it.
         if entry.kind == .quicklink {
             return QuicklinkArgumentsAccessory.make(
@@ -168,8 +176,21 @@ struct LauncherScreen: PaletteScreen {
         return Binding(get: { vm.commandArguments[key] ?? "" }, set: { vm.commandArguments[key] = $0 })
     }
 
+    func argumentFocusTarget(
+        at selection: Int, previousQuery: String, newQuery: String
+    ) -> String? {
+        core.aiChatCoordinator.argumentFocusTarget(
+            for: entry(at: selection), previousQuery: previousQuery, newQuery: newQuery)
+    }
+
     /// The typed values for one row, stripped of blanks — what gets handed to the command.
     private func argumentValues(for entry: AppEntry) -> [String: String] {
+        if let command = core.aiChatCoordinator.customAICommand(for: entry) {
+            return Dictionary(uniqueKeysWithValues: command.arguments.compactMap { argument in
+                let value = vm.commandArguments[PaletteState.argumentKey(entry.id, argument.id)] ?? ""
+                return value.isEmpty ? nil : (argument.id, value)
+            })
+        }
         if entry.kind == .quicklink {
             guard let quicklink = quicklink(for: entry) else { return [:] }
             return QuicklinkArgumentsAccessory.values(for: quicklink, core: core, vm: vm)

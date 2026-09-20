@@ -93,6 +93,7 @@ struct AIProviderTests {
         codexProtocolFramesRoundTrip()
         installedCLIStreamsDecode()
         settingsPersistAndRepairSelections()
+        customCommandsPersistAndRenderArguments()
         installedModelLoadingPreferencePersists()
         subscriptionSelectionsReconcile()
         onDeviceSelectionsRoundTripAndLead()
@@ -104,6 +105,34 @@ struct AIProviderTests {
 
         print("\(passes) passed, \(failures) failed")
         if failures > 0 { exit(1) }
+    }
+
+    static func customCommandsPersistAndRenderArguments() {
+        let suite = "AIProviderTests.customCommands"
+        let defaults = isolatedDefaults(suite)
+        defer { discardSuite(suite, defaults) }
+
+        let store = AISettingsStore(defaults: defaults)
+        let id = UUID()
+        let model = AIModelSelection.api(connection: UUID(), model: "command-model", effort: nil)
+        let prompt = "Translate {argument name=\"Text\"} to "
+            + "{argument name=\"Language\" default=\"Chinese\"}."
+        let added = try? store.addCustomCommand(
+            CustomAICommand(id: id, name: "  Translate  ", prompt: prompt, model: model))
+        expect(added?.name == "Translate", "custom AI command names are trimmed")
+        expect(added?.entryID == "ai-command:\(id.uuidString.lowercased())", "entry ids are stable")
+
+        let reopened = AISettingsStore(defaults: defaults)
+        let command = reopened.customCommand(id: id)
+        let arguments = command?.arguments ?? []
+        let values = arguments.first.map { [$0.id: "hello"] } ?? [:]
+        expect(command?.model == model, "custom AI commands persist their model selection")
+        expect(
+            command?.renderedPrompt(arguments: values)
+                == "Translate \"\"\"hello\"\"\" to \"\"\"Chinese\"\"\".",
+            "custom AI arguments and defaults render into the prompt")
+        expect(reopened.removeCustomCommand(id: id)?.id == id, "custom AI commands can be removed")
+        expect(AISettingsStore(defaults: defaults).customCommands.isEmpty, "removal persists")
     }
 
     /// Both providers stream a call's arguments in pieces; a half-parsed call would be uncallable.

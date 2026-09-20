@@ -373,6 +373,16 @@ struct RootPaletteView: View {
                     extensions.dispatch(handler: handler, arguments: [vm.query])
                 }
             }
+            .onChange(of: vm.query) { previousQuery, newQuery in
+                guard vm.mode == .launcher, argumentFocused == nil,
+                    let field = screen.argumentFocusTarget(
+                        at: selection(in: screen), previousQuery: previousQuery,
+                        newQuery: newQuery)
+                else { return }
+                vm.query = previousQuery
+                argumentFocused = field
+                searchFocused = false
+            }
             // Anything typed while the command was still starting predates its handler.
             .onChange(of: extensionScreen.searchTextHandler) { previous, handler in
                 guard previous == nil, let handler, !vm.query.isEmpty else { return }

@@ -8,6 +8,7 @@ final class HotKeyManager {
     /// The launcher's own command funnel, so a shortcut and a palette row run the same thing.
     var onRunCommand: ((CommandID) -> Void)?
     var onRunCustomCommand: ((UUID) -> Void)?
+    var onRunCustomAICommand: ((UUID) -> Void)?
     var onRunSystemAction: ((SystemAction.ID) -> Void)?
     var onRunWindowCommand: ((WindowCommand.ID) -> Void)?
     var onRunWindowLayout: ((UUID) -> Void)?
@@ -51,6 +52,7 @@ final class HotKeyManager {
     private let boundKey = "boundAppBundleIDs"
     private let boundPaneKey = "boundPaneBundleIDs"
     private let boundCustomCommandKey = "boundCustomCommandIDs"
+    private let boundCustomAICommandKey = "boundCustomAICommandIDs"
     private let boundQuicklinkKey = "boundQuicklinkIDs"
     private let boundQuickActionKey = "boundQuickActionIDs"
     private let boundWindowLayoutKey = "boundWindowLayoutIDs"
@@ -59,10 +61,12 @@ final class HotKeyManager {
     private let boundExtensionCommandKey = "boundExtensionCommandEntryIDs"
 
     func start(
-        customCommandIDs: Set<UUID>, quicklinkIDs: Set<UUID>, windowLayoutIDs: Set<UUID>,
+        customCommandIDs: Set<UUID>, customAICommandIDs: Set<UUID>,
+        quicklinkIDs: Set<UUID>, windowLayoutIDs: Set<UUID>,
         customWindowSizeIDs: Set<UUID>, quickActionIDs: Set<UUID>
     ) {
         prune(key: boundCustomCommandKey, live: customCommandIDs) { .customCommand(id: $0) }
+        prune(key: boundCustomAICommandKey, live: customAICommandIDs) { .customAICommand(id: $0) }
         prune(key: boundQuicklinkKey, live: quicklinkIDs) { .quicklink(id: $0) }
         prune(key: boundWindowLayoutKey, live: windowLayoutIDs) { .windowLayout(id: $0) }
         prune(key: boundCustomWindowSizeKey, live: customWindowSizeIDs) {
@@ -100,6 +104,7 @@ final class HotKeyManager {
 
     /// Custom-command UUIDs with a binding, indexed separately so startup can re-register them.
     var boundCustomCommandIDs: [UUID] { boundIDs(key: boundCustomCommandKey) }
+    var boundCustomAICommandIDs: [UUID] { boundIDs(key: boundCustomAICommandKey) }
 
     /// Quicklink UUIDs with a binding — the same index, its own namespace.
     var boundQuicklinkIDs: [UUID] { boundIDs(key: boundQuicklinkKey) }
@@ -153,6 +158,8 @@ final class HotKeyManager {
             UserDefaults.standard.set(Array(set), forKey: boundPaneKey)
         case .customCommand(let id):
             index(id, bound: binding != nil, key: boundCustomCommandKey)
+        case .customAICommand(let id):
+            index(id, bound: binding != nil, key: boundCustomAICommandKey)
         case .quicklink(let id):
             index(id, bound: binding != nil, key: boundQuicklinkKey)
         case .quickAction(let id):
@@ -206,6 +213,7 @@ final class HotKeyManager {
         actions += boundBundleIDs.map { .app(bundleID: $0) }
         actions += boundPaneBundleIDs.map { .settingsPane(bundleID: $0) }
         actions += boundCustomCommandIDs.map { .customCommand(id: $0) }
+        actions += boundCustomAICommandIDs.map { .customAICommand(id: $0) }
         actions += boundQuicklinkIDs.map { .quicklink(id: $0) }
         actions += boundQuickActionIDs.map { .quickAction(id: $0) }
         actions += boundWindowLayoutIDs.map { .windowLayout(id: $0) }
@@ -228,6 +236,8 @@ final class HotKeyManager {
             return displayName?(action) ?? bundleID
         case .customCommand:
             return displayName?(action) ?? "Custom Command"
+        case .customAICommand:
+            return displayName?(action) ?? "Custom AI Command"
         case .systemAction(let id):
             return SystemActionCatalog.action(id: id).name
         case .windowCommand(let id):
@@ -274,6 +284,7 @@ final class HotKeyManager {
         case .app(let bundleID): AppLauncher.toggle(bundleID: bundleID)
         case .settingsPane(let bundleID): AppLauncher.openSettingsPane(bundleID: bundleID)
         case .customCommand(let id): onRunCustomCommand?(id)
+        case .customAICommand(let id): onRunCustomAICommand?(id)
         case .systemAction(let id): onRunSystemAction?(id)
         case .windowCommand(let id): onRunWindowCommand?(id)
         case .windowLayout(let id): onRunWindowLayout?(id)

@@ -38,9 +38,43 @@ struct AIChatTests {
         await theToolLoopRefusesToRunForever()
         await toolOutputIsBoundedBeforeItIsBilled()
         toolUsesPersistAndSettleOnReload()
+        await customCommandsKeepPromptsOutOfTheTranscript()
 
         print("\(passes) passed, \(failures) failed")
         if failures > 0 { exit(1) }
+    }
+
+    static func customCommandsKeepPromptsOutOfTheTranscript() async {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tinycast-ai-command-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let history = ChatHistoryStore(directory: directory)
+        let commandProvider = ScriptedProvider(rounds: [[.text("你好"), .finished]])
+        let chat = AIChatState(history: history)
+        expect(
+            chat.sendOutputOnly("private translation prompt", using: commandProvider),
+            "a custom AI command starts an output-only request")
+        while chat.isStreaming { await Task.yield() }
+
+        expect(
+            commandProvider.requests.first?.messages.map(\.text) == ["private translation prompt"],
+            "the private command prompt still reaches the provider")
+        expect(
+            chat.session.messages.count == 1 && chat.session.messages.first?.role == .assistant
+                && chat.session.messages.first?.text == "你好",
+            "the command screen exposes only the model output")
+        expect(history.conversations.isEmpty, "output-only command results do not enter chat history")
+
+        let chatProvider = ScriptedProvider(rounds: [[.text("followed up"), .finished]])
+        expect(chat.send("question", using: chatProvider), "chat can start after a command result")
+        while chat.isStreaming { await Task.yield() }
+        expect(
+            chatProvider.requests.first?.messages.map(\.text) == ["question"],
+            "a later chat does not inherit the hidden command prompt or its result")
+        expect(
+            chat.session.messages.map(\.text) == ["question", "followed up"],
+            "starting chat replaces the output-only command screen")
     }
 
     /// A reply that searched and called tools has to render them in the order they happened.

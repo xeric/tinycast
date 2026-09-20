@@ -162,6 +162,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     var hotKeyAction: HotKeyAction? {
         switch kind {
         case .command:
+            if let id = CustomAICommand.id(fromEntryID: id) { return .customAICommand(id: id) }
             return CommandCatalog.command(for: self)?.hotKeyAction
         case .quickAction:
             if let command = CommandCatalog.command(for: self) { return command.hotKeyAction }
@@ -209,7 +210,10 @@ struct AppEntry: Identifiable, Hashable, Sendable {
         case .quicklink: return Quicklink.sfSymbol
         case .snippet: return "text.quote"
         case .customCommand: return CustomCommand.sfSymbol
-        case .command: return CommandCatalog.command(for: self)?.sfSymbol ?? "questionmark"
+        case .command:
+            return CustomAICommand.id(fromEntryID: id) == nil
+                ? CommandCatalog.command(for: self)?.sfSymbol ?? "questionmark"
+                : CustomAICommand.sfSymbol
         case .quickAction:
             return CommandCatalog.command(for: self)?.sfSymbol ?? CustomQuickAction.sfSymbol
         case .systemAction: return SystemActionCatalog.action(forEntryID: id)?.sfSymbol ?? "questionmark"
@@ -255,6 +259,13 @@ extension AppEntry {
             id: action.entryID, name: action.name,
             url: URL(string: "tinycast://quick-action/" + action.id.uuidString)!,
             bundleID: nil, kind: .quickAction, symbolName: action.iconSymbol)
+    }
+
+    init(_ command: CustomAICommand) {
+        self.init(
+            id: command.entryID, name: command.name,
+            url: URL(string: "tinycast://ai-command/" + command.id.uuidString)!,
+            bundleID: nil, kind: .command, settingsOwner: .ai)
     }
 
     /// The one row a custom command draws, wherever it is offered from.
@@ -345,6 +356,7 @@ final class AppIndex {
 
     private var discoveredEntries: [AppEntry] = []
     private var customCommandEntries: [AppEntry] = []
+    private var aiCommandEntries: [AppEntry] = []
     private var windowCommandEntries: [AppEntry] = []
     private var customWindowSizeEntries: [AppEntry] = []
     private var windowLayoutEntries: [AppEntry] = []
@@ -422,6 +434,16 @@ final class AppIndex {
         let entries = actions.sorted(by: CustomQuickAction.precedes).map(AppEntry.init)
         guard entries != customQuickActionEntries else { return }
         customQuickActionEntries = entries
+        publishEntries()
+    }
+
+    /// Replaces the custom AI slice without rescanning, so edits land in search immediately.
+    func setAICommands(_ commands: [CustomAICommand]) {
+        let entries = commands.map(AppEntry.init).sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+        guard entries != aiCommandEntries else { return }
+        aiCommandEntries = entries
         publishEntries()
     }
 
@@ -608,7 +630,8 @@ final class AppIndex {
             + Self.named(
                 extensionEntries + quicklinkEntries + appleShortcutEntries + snippetEntries
                     + Self.systemActionEntries + windowLayoutEntries + windowCommandEntries
-                    + customWindowSizeEntries + customCommandEntries + quickActionEntries
+                    + customWindowSizeEntries + customCommandEntries + aiCommandEntries
+                    + quickActionEntries
                     + commandEntries)
         guard updated != apps else { return }
         apps = updated

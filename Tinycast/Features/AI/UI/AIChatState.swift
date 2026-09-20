@@ -22,34 +22,55 @@ final class AIChatState {
     @ObservationIgnored private var pendingText = ""
     @ObservationIgnored private var flushTask: Task<Void, Never>?
     @ObservationIgnored private var lastFlush = ContinuousClock().now
-
-    private static let flushInterval: Duration = .milliseconds(40)
-
-    init(history: ChatHistoryStore) {
-        self.history = history
-    }
-
+    @ObservationIgnored private var isOutputOnly = false
     @discardableResult
     func send(
         _ input: String, using provider: any AIProvider, webSearch: Bool = false,
         instructions: String? = nil, contextBudget: Int = ChatSession.defaultTextBudget
     ) -> Bool {
+        send(
+            input, using: provider, webSearch: webSearch, instructions: instructions,
+            contextBudget: contextBudget, displaysPrompt: true)
+    }
+
+    @discardableResult
+    func sendOutputOnly(
+        _ input: String, using provider: any AIProvider, webSearch: Bool = false,
+        instructions: String? = nil, contextBudget: Int = ChatSession.defaultTextBudget
+    ) -> Bool {
+        send(
+            input, using: provider, webSearch: webSearch, instructions: instructions,
+            contextBudget: contextBudget, displaysPrompt: false)
+    }
+
+    private func send(
+        _ input: String, using provider: any AIProvider, webSearch: Bool,
+        instructions: String?, contextBudget: Int, displaysPrompt: Bool
+    ) -> Bool {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !pendingAttachments.isEmpty, !isStreaming else { return false }
+        if displaysPrompt, isOutputOnly {
+            session = ChatSession()
+            isOutputOnly = false
+        } else if !displaysPrompt {
+            isOutputOnly = true
+        }
         notice = nil
-        session.append(
-            ChatMessage(
-                role: .user, text: text, images: pendingAttachments.compactMap(\.image),
-                documents: pendingAttachments.compactMap(\.document)))
+        let userMessage = ChatMessage(
+            role: .user, text: text, images: pendingAttachments.compactMap(\.image),
+            documents: pendingAttachments.compactMap(\.document))
+        var requestSession = session
+        requestSession.append(userMessage)
+        if displaysPrompt { session.append(userMessage) }
         clearStaging()
         let request = AIRequest(
             instructions: instructions,
-            messages: session.requestMessages(textBudget: contextBudget), webSearch: webSearch)
+            messages: requestSession.requestMessages(textBudget: contextBudget), webSearch: webSearch)
         session.append(ChatMessage(role: .assistant, text: "", state: .streaming))
         isStreaming = true
         isThinking = false
         usage = nil
-        history.save(session)
+        if !isOutputOnly { history.save(session) }
 
         replyGeneration += 1
         let generation = replyGeneration
@@ -73,6 +94,12 @@ final class AIChatState {
             }
         }
         return true
+    }
+
+    private static let flushInterval: Duration = .milliseconds(40)
+
+    init(history: ChatHistoryStore) {
+        self.history = history
     }
 
     func report(_ message: String) {
@@ -128,6 +155,7 @@ final class AIChatState {
     func startNewChat() {
         cancel()
         session = ChatSession()
+        isOutputOnly = false
         usage = nil
         notice = nil
         clearStaging()
@@ -266,7 +294,7 @@ final class AIChatState {
         // A call still running when the turn ends never reported back, whatever ended the turn.
         message.toolUses = message.toolUses.map { Self.settled($0) }
         session.replaceLast(with: message)
-        history.save(session)
+        if !isOutputOnly { history.save(session) }
         isStreaming = false
         isThinking = false
         replyTask = nil

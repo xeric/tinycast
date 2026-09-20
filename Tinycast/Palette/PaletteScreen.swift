@@ -141,6 +141,10 @@ private extension MenuPanelCorner {
         at selection: Int, focus: FocusState<String?>.Binding
     )
         -> PaletteHeaderAccessory?
+    /// A query edit may hand focus to a row-owned argument field.
+    func argumentFocusTarget(
+        at selection: Int, previousQuery: String, newQuery: String
+    ) -> String?
     @ViewBuilder func body(selection: Int, scroll: ScrollIntent) -> AnyView
 }
 
@@ -167,6 +171,10 @@ extension PaletteScreen {
     func pasteKeepingWindowOpen(at selection: Int) -> Bool { false }
     func perform(_ shortcut: PaletteShortcut, at selection: Int) -> Bool { false }
     func move(_ delta: Int, axis: PaletteAxis, from selection: Int) -> Int? { nil }
+    func argumentFocusTarget(
+        at selection: Int, previousQuery: String, newQuery: String
+    ) -> String? { nil }
+
     func headerAccessory(
         at selection: Int, focus: FocusState<String?>.Binding
     )
