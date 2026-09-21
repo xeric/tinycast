@@ -33,11 +33,14 @@ targets:
     platform: macOS
     sources:
       - path: Tinycast
-        # The helper's own sources: compiling them in would link Vision and PDFKit into the app,
-        # which is the whole thing running recognition out of process avoids.
+        # Keep the Icon Composer document explicit and helper sources out of the app target.
         excludes:
+          - tinycast.icon
           - Features/Clipboard/Service/ClipboardTextExtractor.swift
           - Features/Clipboard/Service/ClipboardTextHelper.swift
+      - path: Tinycast/tinycast.icon
+        type: file
+        buildPhase: resources
       # The MIT mark's licence asks the notice to travel with the binary, not just the repo.
       - path: NOTICE.md
         buildPhase: resources
