@@ -55,9 +55,10 @@ provider protocol and the connections behind it.
   OpenCode and Cursor catalogs as AI Settings. Execution still goes through `AIProviderFactory`, so Quick Actions
   inherit the same installed login, tool restrictions and process cleanup without owning CLI logic.
 - **The model picker is the AI picker.** Both panes render `AIModelOption.groupedCatalog`, with the
-  same provider sections, model labels and provider-supported reasoning levels. An installed-model
-  selection stores its effort in `quickActionModel`, independently of chat's effort. The sheets use the
-  same `AIModelSelectionRows`, with **Same as Quick Actions** as the `nil` choice.
+  same provider sections, model catalog and provider-supported reasoning levels. Action editors name
+  each choice as `model — provider`, including reader-configured API connections, and warm installed
+  catalogs when they appear. An installed-model selection stores its effort independently of chat's.
+  The sheets use `AIModelSelectionRows`, with **Same as Quick Actions** as the `nil` choice.
 - **The reader's own text gets permissive guardrails.** `AppCore.quickActionProvider()` asks for
   `SystemLanguageModel.Guardrails.permissiveContentTransformations`. The default filter is tuned for
   a model writing fresh prose and refuses to transform text somebody already wrote, which is the

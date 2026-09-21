@@ -8,6 +8,7 @@ struct AIModelSelectionRows<ModelLabel: View, EffortLabel: View>: View {
     let selection: AIModelSelection?
     /// Offers `nil` as a choice of its own, for a caller whose empty selection means another route.
     var inheritedTitle: String?
+    var showsSourceInOptionTitle = false
     let select: (AIModelSelection?) -> Void
     @ViewBuilder let modelLabel: () -> ModelLabel
     @ViewBuilder let effortLabel: () -> EffortLabel
@@ -25,7 +26,7 @@ struct AIModelSelectionRows<ModelLabel: View, EffortLabel: View>: View {
                 ForEach(modelGroups) { group in
                     Section(group.title) {
                         ForEach(group.options) { option in
-                            Text(option.title).tag(Optional(option.selection))
+                            Text(optionTitle(option)).tag(Optional(option.selection))
                         }
                     }
                 }
@@ -42,6 +43,10 @@ struct AIModelSelectionRows<ModelLabel: View, EffortLabel: View>: View {
                 }
             }
         }
+    }
+
+    private func optionTitle(_ option: AIModelOption) -> String {
+        showsSourceInOptionTitle ? "\(option.title) — \(option.sourceTitle)" : option.title
     }
 
     private var modelGroups: [AIModelOptionGroup] {

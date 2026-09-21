@@ -307,12 +307,11 @@ struct QuickActionsSettingsView: View {
                     title: "Customize \(action.title)",
                     subtitle: "Tell Tinycast how you want \(action.title) to handle your selected text."
                 )
+                QuickActionModelPicker(selection: $model)
 
                 TextEditor(text: $instructions)
                     .font(.body)
                     .settingsEditorTextArea(height: Theme.Size.editorTextHeight * 2)
-
-                QuickActionModelPicker(selection: $model)
 
                 HStack(spacing: Theme.Spacing.md) {
                     Button("Use Default") { instructions = builtIn }

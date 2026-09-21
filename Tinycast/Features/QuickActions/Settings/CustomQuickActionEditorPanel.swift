@@ -48,10 +48,9 @@ struct CustomQuickActionEditorPanel: View {
                 nameField
                 iconField
             }
+            QuickActionModelPicker(selection: $model)
 
             instructionsField
-
-            QuickActionModelPicker(selection: $model)
 
             if let failure {
                 Text(failure)
