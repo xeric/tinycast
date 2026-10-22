@@ -115,7 +115,8 @@ struct AICommandEditorSheet: View {
     }
 
     private var defaultModelTitle: String {
-        "Default · \(core.aiChatCoordinator.selectedModelTitle)"
+        let coordinator = core.aiChatCoordinator
+        return "Default · \(coordinator.modelTitle(of: core.aiSettings.defaultModel, among: coordinator.modelOptions))"
     }
 
     private var template: AICommandTemplate { AICommandTemplate(prompt) }
