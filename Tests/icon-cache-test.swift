@@ -162,6 +162,47 @@ struct IconCacheTests {
         }
     }
 
+    static func rowRendering() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("icon-cache-rendering-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let url = directory.appendingPathComponent("fixture")
+            try Data().write(to: url)
+            // Owned artwork keeps IconServices' live system-app variants out of the comparison.
+            let artwork = NSImage(size: NSSize(width: 256, height: 256), flipped: false) { _ in
+                NSColor(deviceRed: 0.2, green: 0.6, blue: 0.8, alpha: 1).setFill()
+                NSRect(x: 24, y: 24, width: 208, height: 208).fill()
+                NSColor(deviceRed: 0.8, green: 0.3, blue: 0.1, alpha: 1).setFill()
+                NSRect(x: 72, y: 96, width: 64, height: 80).fill()
+                return true
+            }
+            guard NSWorkspace.shared.setIcon(artwork, forFile: url.path, options: []) else {
+                return expect(false, "the fixture installs its custom icon")
+            }
+            for name in [NSAppearance.Name.aqua, .darkAqua] {
+                NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+                    IconCache.invalidateStyled()
+                    let baseline = IconCache.icon(forFile: url.path)
+                    for scale: CGFloat in [1, 2] {
+                        for points: CGFloat in [24, 26, 29] {
+                            autoreleasepool {
+                                let size = IconSize(points: points, scale: scale)
+                                let candidate = IconCache.icon(forFile: url.path, size: size)
+                                expect(
+                                    rendered(baseline, size: size) == rendered(candidate, size: size),
+                                    "row artwork matches the full icon: \(name), \(points)pt @\(scale)x")
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            expect(false, "the rendering fixture writes: \(error)")
+        }
+    }
+
     static func fittedAlphaThreshold() {
         let size = IconSize(points: 48, scale: 2)
         for alpha in 0...255 {
@@ -212,6 +253,7 @@ struct IconCacheTests {
 
         rowSizes()
         rowLifetime()
+        rowRendering()
         fittedAlphaThreshold()
         await asynchronousRows()
         semanticSymbolNames()

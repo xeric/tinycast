@@ -172,7 +172,7 @@ If a change touches anything in the right column, the harness on the left is man
 | `ext-metadata-test` | `Extensions/Service/ExtensionCommandMetadataStore.swift` — round-trip, failure runs, uninstall |
 | `ext-test` | the extension runtime and native menu-bar lifecycle — boots shipped sources in JavaScriptCore; menu tests cover restoration, refresh serialization, actions and teardown; fetch tests cover HTTP connection cleanup, cancellation and request isolation |
 | `ext-icon-test` | `Extensions/Service/ExtensionIconCache.swift` — artwork sizing and its fallback |
-| `icon-cache-test` | `Platform/Images/IconCache.swift` — row sizing at 1×/2×, warm reuse, stamp and style invalidation, bitmap release and fitted geometry across all 256 alpha values |
+| `icon-cache-test` | `Platform/Images/IconCache.swift` — row sizing at 1×/2×, warm reuse, stamp and style invalidation, bitmap release, fitted geometry across all 256 alpha values, and that a row icon draws identically to the 96px one using owned custom artwork |
 | `entry-icon-test` | `EntryIcon` — that each case draws, caches and prints apart from the others, and that a moved `FileIconStamp` retires the bitmap decoded before it |
 | `text-diff-test` | `QuickActions/Model/TextDiffEngine.swift` — exact chunks, coalescing, Unicode, ties, token-cap boundaries and fast paths |
 | `settings-backup-test` | `Settings/AppSettingsKey.swift`, `Backup/Model/SettingsBackupCoverage.swift` |
