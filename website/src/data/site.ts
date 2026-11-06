@@ -32,7 +32,7 @@ export const hero = {
   // ends as written; none is wider than "Everything", so the line never rewraps.
   // The second line ends bare, because the hero draws a caret after it.
   headline: {
-    swap: ["Everything", "Every app", "Every file", "Every window", "Every note"],
+    swap: ["Everything", "Every app", "Every file", "Every clip", "Every note"],
     rest: "on your Mac.",
     second: "One keystroke away",
   },
@@ -106,7 +106,7 @@ export const badges: Badge[] = [
     height: 66,
   },
   {
-    href: "https://www.trymacapps.com",
+    href: "https://www.trymacapps.com/app/tinycast",
     alt: "Featured on TryMacApps",
     src: "/badges/trymacapps.png",
     width: 200,

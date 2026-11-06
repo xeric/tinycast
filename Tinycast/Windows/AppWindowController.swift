@@ -44,7 +44,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
     ) -> Bool {
         let root = content()
         return show(chrome: chrome) {
-            let hosting = NSHostingController(rootView: root)
+            let hosting = NSHostingController(rootView: root.motionScope())
             // Keep the window's size authoritative: an unconstrained fill would drive the frame.
             hosting.sizingOptions = []
             return hosting
@@ -58,6 +58,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
             raise(window)
             return false
         }
+        activation?.windowWillOpen()
         let window = makeWindow(content: contentViewController(), chrome: chrome)
         self.chrome = chrome
         self.window = window
