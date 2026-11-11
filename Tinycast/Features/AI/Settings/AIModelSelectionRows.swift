@@ -9,6 +9,8 @@ struct AIModelSelectionRows<ModelLabel: View, EffortLabel: View>: View {
     /// Offers `nil` as a choice of its own, for a caller whose empty selection means another route.
     var inheritedTitle: String?
     var showsSourceInOptionTitle = false
+    /// For a caller whose instructions the on-device model would never receive.
+    var excludesOnDevice = false
     let select: (AIModelSelection?) -> Void
     @ViewBuilder let modelLabel: () -> ModelLabel
     @ViewBuilder let effortLabel: () -> EffortLabel
@@ -50,8 +52,9 @@ struct AIModelSelectionRows<ModelLabel: View, EffortLabel: View>: View {
     }
 
     private var modelGroups: [AIModelOptionGroup] {
-        AIModelOption.availableGroups(
+        let groups = AIModelOption.availableGroups(
             settings: settings, subscription: subscription, installedAI: installedAI)
+        return excludesOnDevice ? groups.filter { $0.source != .appleIntelligence } : groups
     }
 
     private var efforts: [ChatGPTSubscription.Effort] {
